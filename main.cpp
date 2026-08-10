@@ -9,7 +9,6 @@
 // fixed-size buffer pool (clock replacement) sits in front of the data file, so
 // resident memory is bounded regardless of how many records are stored.
 
-#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <fcntl.h>
@@ -22,7 +21,7 @@ static const int IDXLEN = 64;   // index strings are at most 64 bytes
 #define TUNE_MAXN 60
 #endif
 #ifndef TUNE_NF
-#define TUNE_NF 320
+#define TUNE_NF 64
 #endif
 
 static const int MAXN = TUNE_MAXN;   // entries per node
@@ -417,23 +416,29 @@ static void doDelete(const Key &k) {
 /* buffered stdio                                                     */
 /* ------------------------------------------------------------------ */
 
-static char ibuf[1 << 16];
+static char ibuf[1 << 14];
 static int ilen = 0, ipos = 0;
 
 static inline int gc() {
     if (ipos == ilen) {
-        ilen = (int)fread(ibuf, 1, sizeof(ibuf), stdin);
+        ilen = (int)read(0, ibuf, sizeof(ibuf));
         ipos = 0;
         if (ilen <= 0) return -1;
     }
     return (unsigned char)ibuf[ipos++];
 }
 
-static char obuf[1 << 16];
+static char obuf[1 << 15];
 static int olen = 0;
 
-static inline void flushOut() {
-    if (olen) { fwrite(obuf, 1, olen, stdout); olen = 0; }
+static void flushOut() {
+    int off = 0;
+    while (off < olen) {
+        ssize_t w = write(1, obuf + off, olen - off);
+        if (w <= 0) break;
+        off += (int)w;
+    }
+    olen = 0;
 }
 
 static inline void put(char c) {
